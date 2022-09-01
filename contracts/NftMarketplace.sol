@@ -42,9 +42,17 @@ contract NftMarketplace is ReentrancyGuard {
         uint256 price
     );
 
+    // mapping or array? Mapping is more convenient
+    // NFT Contract address -> NFT TokenID -> Listing
     mapping(address => mapping(uint256 => Listing)) private s_listings;
+    // proceeds to keep track of how much money people have made selling NFTs
     mapping(address => uint256) private s_proceeds;
 
+    /////////////////////
+    // Modifiers //
+    /////////////////////
+    // Function Modifiers are used to modify the behaviour of a function. For example to add a prerequisite to a function.
+    // to make sure we don't relist items that are already listed
     modifier notListed(
         address nftAddress,
         uint256 tokenId,
@@ -58,6 +66,7 @@ contract NftMarketplace is ReentrancyGuard {
     }
 
     modifier isListed(address nftAddress, uint256 tokenId) {
+        // check to make sure the NFT is listed. Go throu the mapping and check the price
         Listing memory listing = s_listings[nftAddress][tokenId];
         if (listing.price <= 0) {
             revert NotListed(nftAddress, tokenId);
@@ -93,6 +102,8 @@ contract NftMarketplace is ReentrancyGuard {
         uint256 price
     )
         external
+        // external when only people or contracts outside of this contract are going to call this function
+        // add any modifier here
         notListed(nftAddress, tokenId, msg.sender)
         isOwner(nftAddress, tokenId, msg.sender)
     {
@@ -100,10 +111,13 @@ contract NftMarketplace is ReentrancyGuard {
             revert PriceMustBeAboveZero();
         }
         IERC721 nft = IERC721(nftAddress);
+        // if we are not approved. getApproved from ERC721
         if (nft.getApproved(tokenId) != address(this)) {
             revert NotApprovedForMarketplace();
         }
+        // if one gets approved for listing, we update the listings mapping with:
         s_listings[nftAddress][tokenId] = Listing(price, msg.sender);
+        // emit event updates a mapping
         emit ItemListed(msg.sender, nftAddress, tokenId, price);
     }
 
@@ -114,6 +128,7 @@ contract NftMarketplace is ReentrancyGuard {
      */
     function cancelListing(address nftAddress, uint256 tokenId)
         external
+        // modifiers: only owner can cancel and that the nft is listed
         isOwner(nftAddress, tokenId, msg.sender)
         isListed(nftAddress, tokenId)
     {
@@ -139,14 +154,20 @@ contract NftMarketplace is ReentrancyGuard {
         // 1. Abitrary tokens as payment? (HINT - Chainlink Price Feeds!)
         // 2. Be able to set prices in other currencies?
         // 3. Tweet me @PatrickAlphaC if you come up with a solution!
+
         Listing memory listedItem = s_listings[nftAddress][tokenId];
         if (msg.value < listedItem.price) {
             revert PriceNotMet(nftAddress, tokenId, listedItem.price);
         }
+        // updating the mapping "proceeds"
         s_proceeds[listedItem.seller] += msg.value;
-        // Could just send the money...
+        // Why don't just send the money to the seller? To shift the risk of moving money.
+        // We instead have them withdraw the money
+        // pull over push payments
         // https://fravoll.github.io/solidity-patterns/pull_over_push.html
         delete (s_listings[nftAddress][tokenId]);
+
+        // send the NFT
         IERC721(nftAddress).safeTransferFrom(listedItem.seller, msg.sender, tokenId);
         emit ItemBought(msg.sender, nftAddress, tokenId, listedItem.price);
     }
@@ -183,14 +204,18 @@ contract NftMarketplace is ReentrancyGuard {
         if (proceeds <= 0) {
             revert NoProceeds();
         }
+        // as a BEST PRACTICE for security it's best to change the state before call any external functions.
+        // we set s_proceeds[msg.sender] = 0 so a malicious attack is not triggered by seeing money. Then we call the .call (external) function
+        // read more about Reentrant Vulnerability
         s_proceeds[msg.sender] = 0;
+        // msg.sender.call calls the anonymous fallback function on msg.sender
         (bool success, ) = payable(msg.sender).call{value: proceeds}("");
         require(success, "Transfer failed");
     }
 
-    /////////////////////
+    //////////////////////
     // Getter Functions //
-    /////////////////////
+    //////////////////////
 
     function getListing(address nftAddress, uint256 tokenId)
         external

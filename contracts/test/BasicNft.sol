@@ -3,6 +3,7 @@ pragma solidity ^0.8.7;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
+// a basic NFT contract just to verify that we can deploy nfts. Used in 02-deploy
 contract BasicNft is ERC721 {
     string public constant TOKEN_URI =
         "ipfs://bafybeig37ioir76s7mg5oobetncojcm3c3hxasyd4rvid4jqhy4gkaheg4/?filename=0-PUG.json";
