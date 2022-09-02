@@ -6,6 +6,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
     ? describe.skip
     : describe("Nft Marketplace Unit Tests", function () {
           let nftMarketplace, nftMarketplaceContract, basicNft, basicNftContract
+          // for testing we set a constant price for all nfts and a const Token ID
           const PRICE = ethers.utils.parseEther("0.1")
           const TOKEN_ID = 0
 
@@ -13,10 +14,13 @@ const { developmentChains } = require("../../helper-hardhat-config")
               accounts = await ethers.getSigners() // could also do with getNamedAccounts
               deployer = accounts[0]
               user = accounts[1]
+              // deploy all the scripts in the deploy folder with fixture
               await deployments.fixture(["all"])
               nftMarketplaceContract = await ethers.getContract("NftMarketplace")
+            // deployer is the marketplace
               nftMarketplace = nftMarketplaceContract.connect(deployer)
               basicNftContract = await ethers.getContract("BasicNft")
+              // for testing, we set the deployer to be the owner of the nft, since only the owner can approve
               basicNft = await basicNftContract.connect(deployer)
               await basicNft.mintNft()
               await basicNft.approve(nftMarketplaceContract.address, TOKEN_ID)
@@ -96,6 +100,7 @@ const { developmentChains } = require("../../helper-hardhat-config")
               })
               it("transfers the nft to the buyer and updates internal proceeds record", async function () {
                   await nftMarketplace.listItem(basicNft.address, TOKEN_ID, PRICE)
+                  // .connect() is used to set the new owner of the nft contract
                   nftMarketplace = nftMarketplaceContract.connect(user)
                   expect(
                       await nftMarketplace.buyItem(basicNft.address, TOKEN_ID, { value: PRICE })
